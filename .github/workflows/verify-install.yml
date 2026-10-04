@@ -1,0 +1,45 @@
+name: Verify public bottle installation
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash -xeuo pipefail {0}
+
+jobs:
+  verify:
+    name: Verify public install (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    container: ${{ fromJSON(toJSON(matrix.container)) }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, macos-15-intel]
+        include:
+          - os: ubuntu-24.04
+            container:
+              image: ghcr.io/homebrew/brew:main
+              options: --privileged
+    steps:
+      - name: Check out tap helper
+        uses: actions/checkout@v7
+        with:
+          path: tap-source
+          persist-credentials: false
+
+      - name: Update stable Homebrew
+        env:
+          HOMEBREW_UPDATE_TO_TAG: 1
+        run: brew update
+
+      - name: Verify public bottle installation
+        working-directory: ${{ runner.temp }}
+        env:
+          HOMEBREW_NO_ANALYTICS: 1
+          HOMEBREW_NO_AUTO_UPDATE: 1
+          HOMEBREW_UPDATE_TO_TAG: 1
+        run: python3 "$GITHUB_WORKSPACE/tap-source/scripts/verify-public-install.py"
