@@ -79,6 +79,19 @@ class BottleValidationTests(unittest.TestCase):
     def test_accepts_both_targets_and_matching_archives(self) -> None:
         check_bottles.validate_bottles(self.directory, VERSION)
 
+    def test_homebrew_rebuild(self) -> None:
+        for path in self.metadata_paths.values():
+            metadata = json.loads(path.read_text())
+            bottle = metadata[check_bottles.FORMULA]["bottle"]
+            bottle["rebuild"] = 1
+            for tag in bottle["tags"].values():
+                old_name = tag["local_filename"]
+                tag["filename"] = tag["filename"].replace(".bottle.tar.gz", ".bottle.1.tar.gz")
+                tag["local_filename"] = old_name.replace(".bottle.tar.gz", ".bottle.1.tar.gz")
+                (self.directory / old_name).rename(self.directory / tag["local_filename"])
+            path.write_text(json.dumps(metadata))
+        check_bottles.validate_bottles(self.directory, VERSION)
+
     def test_rejects_a_missing_target(self) -> None:
         self.metadata_paths["x86_64_linux"].unlink()
         (self.directory / "perfect-doc--2.4.1.x86_64_linux.bottle.tar.gz").unlink()

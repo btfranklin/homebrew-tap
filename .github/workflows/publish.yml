@@ -146,5 +146,5 @@ jobs:
           brew pr-upload --upload-only
           tap_path="$(brew --repository btfranklin/tap)"
           git -C "$tap_path" add Formula/perfect-doc.rb
-          git -C "$tap_path" commit -m "Publish Perfect Doc $VERSION bottles"
+          git -C "$tap_path" commit -m "Publish Perfect Doc $VERSION bottles [skip ci]"
           git -C "$tap_path" push origin HEAD:main

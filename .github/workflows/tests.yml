@@ -69,7 +69,7 @@ jobs:
 
       - name: Require a tested bottle
         run: |
-          compgen -G '*.bottle.tar.gz'
+          compgen -G '*.bottle*.tar.gz'
           compgen -G '*.bottle.json'
 
       - name: Upload bottle artifacts

@@ -4,3 +4,6 @@
 # Local Homebrew test output
 /home/
 /logs/
+
+# Python validation tools
+__pycache__/

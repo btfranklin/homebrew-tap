@@ -38,9 +38,10 @@ def _read_json(path: Path) -> dict[str, Any]:
     return value
 
 
-def _expected_paths(version: str, target: str) -> tuple[str, str]:
-    public_name = f"perfect-doc-{version}.{target}.bottle.tar.gz"
-    local_name = f"perfect-doc--{version}.{target}.bottle.tar.gz"
+def _expected_paths(version: str, target: str, rebuild: int) -> tuple[str, str]:
+    suffix = f".{rebuild}" if rebuild else ""
+    public_name = f"perfect-doc-{version}.{target}.bottle{suffix}.tar.gz"
+    local_name = f"perfect-doc--{version}.{target}.bottle{suffix}.tar.gz"
     return public_name, local_name
 
 
@@ -54,7 +55,7 @@ def validate_bottles(directory: Path, version: str) -> None:
     archives = sorted(path for path in entries if path.name.endswith(".tar.gz"))
     _require(len(metadata_files) == 2, f"expected exactly two .bottle.json files; found {len(metadata_files)}")
     _require(len(archives) == 2, f"expected exactly two .bottle.tar.gz archives and no stray archives; found {len(archives)} .tar.gz files")
-    _require(all(path.name.endswith(".bottle.tar.gz") for path in archives), "found a stray archive; every .tar.gz file must be a bottle archive")
+    _require(all(re.search(r"\.bottle(?:\.[0-9]+)?\.tar\.gz$", path.name) for path in archives), "found a stray archive; every .tar.gz file must be a bottle archive")
 
     found_targets: set[str] = set()
     found_archives: set[str] = set()
@@ -81,7 +82,7 @@ def validate_bottles(directory: Path, version: str) -> None:
 
         _require(bottle.get("root_url") == expected_root, f"{metadata_path.name}: bottle root_url must be {expected_root!r}")
         rebuild = bottle.get("rebuild")
-        _require(type(rebuild) is int and rebuild == 0, f"{metadata_path.name}: bottle rebuild must be 0")
+        _require(type(rebuild) is int and rebuild >= 0, f"{metadata_path.name}: bottle rebuild must be a nonnegative integer")
         tags = bottle.get("tags")
         _require(isinstance(tags, dict), f"{metadata_path.name}: bottle tags must be an object")
         _require(len(tags) == 1, f"{metadata_path.name}: expected exactly one target tag")
@@ -91,7 +92,7 @@ def validate_bottles(directory: Path, version: str) -> None:
             _require(target not in found_targets, f"duplicate bottle target {target!r}")
             found_targets.add(target)
             _require(isinstance(tag, dict), f"{metadata_path.name}: target {target} must be an object")
-            public_name, local_name = _expected_paths(version, target)
+            public_name, local_name = _expected_paths(version, target, rebuild)
             _require(tag.get("filename") == public_name, f"{metadata_path.name}: target {target} filename must be {public_name!r}")
 
             local_value = tag.get("local_filename")
