@@ -25,6 +25,10 @@ jobs:
               image: ghcr.io/homebrew/brew:main
               options: --privileged
     steps:
+      - name: Prepare container workspace
+        if: runner.os == 'Linux'
+        run: sudo chown -R "$(id -u):$(id -g)" "$GITHUB_WORKSPACE" "$RUNNER_TEMP"
+
       - name: Check out tap helper
         uses: actions/checkout@v7
         with:
