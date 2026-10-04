@@ -52,9 +52,4 @@ jobs:
           HOMEBREW_NO_ANALYTICS: 1
           HOMEBREW_NO_AUTO_UPDATE: 1
           HOMEBREW_UPDATE_TO_TAG: 1
-        run: |
-          python_command=python3
-          if [[ "$RUNNER_OS" == 'Linux' ]]; then
-            python_command="$(brew --prefix python)/libexec/bin/python3"
-          fi
-          "$python_command" "$RUNNER_TEMP/tap-source/scripts/verify-public-install.py"
+        run: python3 "$RUNNER_TEMP/tap-source/scripts/verify-public-install.py"
