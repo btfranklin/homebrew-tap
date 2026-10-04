@@ -84,7 +84,7 @@ jobs:
           assert not formula["dependencies"], formula
           assert not formula["test_dependencies"], formula
           '
-          brew install --build-bottle --ignore-dependencies --env=std btfranklin/tap/perfect-doc
+          brew install --build-bottle --ignore-dependencies btfranklin/tap/perfect-doc
           brew audit --strict --online --formula btfranklin/tap/perfect-doc
           brew bottle --json --root-url="https://github.com/$GITHUB_REPOSITORY/releases/download/perfect-doc-$(brew list --versions perfect-doc | awk '{print $2}')" btfranklin/tap/perfect-doc
           brew uninstall perfect-doc
