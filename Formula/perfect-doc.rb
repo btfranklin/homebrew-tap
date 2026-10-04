@@ -1,10 +1,16 @@
 class PerfectDoc < Formula
   desc "Check the structure and links in documentation collections"
   homepage "https://github.com/btfranklin/perfect-doc"
+  url "https://github.com/btfranklin/perfect-doc/archive/refs/tags/v0.1.0.tar.gz"
+  sha256 "69136d1720c42e7001b74fd2ea0c10aa8261b4a7ab03b7d6fdcbd7f2b22bfdf6"
   license "MIT"
   head "https://github.com/btfranklin/perfect-doc.git", branch: "main"
 
   depends_on "rust" => :build
+
+  on_macos do
+    depends_on arch: :arm64
+  end
 
   def fetch
     system "cargo", "fetch", *std_cargo_fetch_args

@@ -6,28 +6,44 @@ Homebrew formulas for tools by B.T. Franklin. The tap name is `btfranklin/tap`.
 
 | Formula | Description |
 | --- | --- |
-| [Perfect Doc](https://github.com/btfranklin/perfect-doc) | Check the structure and links in Markdown, OKF, and HTML documentation. |
+| [perfect-doc](https://github.com/btfranklin/perfect-doc) | Check the structure and links in Markdown, OKF, HTML, and MDX documents. |
 
 ## Install Perfect Doc
 
-Use Homebrew 7 or later. With `btfranklin/tap` added to Homebrew and the Perfect
-Doc formula trusted, install with:
+Use Homebrew 7 or later. Add the tap and trust the formula once:
 
 ```sh
-brew install --HEAD perfect-doc
+brew tap btfranklin/tap
+brew trust --formula btfranklin/tap/perfect-doc
 ```
 
-The [Perfect Doc formula](Formula/perfect-doc.rb) builds the current `main`
-branch from source. Homebrew installs Rust as a build dependency.
+Then install with the short name:
+
+```sh
+brew install perfect-doc
+```
+
+You can also add the tap, trust the formula, and install with one command:
+
+```sh
+brew install btfranklin/tap/perfect-doc
+```
+
+Run a scan from the directory that contains your documents:
+
+```sh
+perfect-doc check .
+```
 
 See the [Perfect Doc usage guide](https://github.com/btfranklin/perfect-doc/blob/main/docs/usage.md)
-for commands, configuration, report formats, and supported checks.
+for configuration, reports, and test integration.
 
 ## Contributing
 
-See the [maintenance guide](docs/maintaining.md) for formula checks and tests.
+See [maintain the tap](docs/maintaining.md) for formula checks and bottle
+publication.
 
 ## License
 
-This repository uses the [MIT license](LICENSE). Each formula declares the
-license of its source project.
+This repository uses the [MIT license](LICENSE). Each formula installs software
+under the license stated by its source project.
