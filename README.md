@@ -29,6 +29,11 @@ You can also add the tap, trust the formula, and install with one command:
 brew install btfranklin/tap/perfect-doc
 ```
 
+Prebuilt bottles are available for Apple Silicon macOS and Linux x64.
+Bottle installation does not need Rust. macOS support requires Apple Silicon.
+The [release assets](https://github.com/btfranklin/homebrew-tap/releases/tag/perfect-doc-0.1.0)
+contain the published bottles.
+
 Run a scan from the directory that contains your documents:
 
 ```sh
