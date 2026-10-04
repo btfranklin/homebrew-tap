@@ -6,6 +6,12 @@ class PerfectDoc < Formula
   license "MIT"
   head "https://github.com/btfranklin/perfect-doc.git", branch: "main"
 
+  bottle do
+    root_url "https://github.com/btfranklin/homebrew-tap/releases/download/perfect-doc-0.1.0"
+    sha256 cellar: :any_skip_relocation, arm64_sequoia: "9479344ac8d3c367dd093fda26215598293f0b2faf8bb1f2b5cb3ee05c5c18b2"
+    sha256 cellar: :any,                 x86_64_linux:  "ad65bc239f214b68013a126ef3cfb504a6fdaf1a63edc2b0b092c5aab4155ba1"
+  end
+
   depends_on "rust" => :build
 
   on_macos do
