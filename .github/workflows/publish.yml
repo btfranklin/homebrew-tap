@@ -50,7 +50,7 @@ jobs:
             exit 1
           fi
 
-      - name: Build and publish bottles
+      - name: Publish tested bottles
         id: pr-pull
         env:
           PULL_REQUEST: ${{ inputs.pull_request }}

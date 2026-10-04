@@ -82,7 +82,7 @@ def public_install() -> None:
     verify_scans(executable)
 
     run(["brew", "test", "--formula", FORMULA])
-    run(["brew", "reinstall", "--force-bottle", "--formula", FORMULA])
+    run(["brew", "reinstall", "--force-bottle", "--formula", FORMULA_NAME])
     require_bottle(installed_formula(), version)
     if run([str(executable), "--version"], capture=True).stdout.strip() != expected:
         raise VerificationError("The reinstalled command reports an unexpected version.")
