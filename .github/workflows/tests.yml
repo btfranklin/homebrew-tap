@@ -38,6 +38,8 @@ jobs:
           rustup update stable --no-self-update
           rustup run stable rustc --version
           rustup run stable cargo --version
+          compiler_bin="$(dirname "$(rustup which --toolchain stable rustc)")"
+          printf 'PERFECT_DOC_RUST_BIN=%s\n' "$compiler_bin" >> "$GITHUB_ENV"
 
       - name: Set up Homebrew
         id: set-up-homebrew
@@ -71,8 +73,7 @@ jobs:
         if: github.event_name == 'pull_request' && matrix.os == 'macos-15-intel'
         run: |
           # Homebrew has no Intel Rust bottle. Use the official stable toolchain.
-          export PATH="$HOME/.cargo/bin:$PATH"
-          export RUSTUP_TOOLCHAIN=stable
+          export PATH="$PERFECT_DOC_RUST_BIN:$PATH"
           rustc --version
           cargo --version
           # The only dependency is the build compiler supplied above.
