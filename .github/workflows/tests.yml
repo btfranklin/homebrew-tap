@@ -31,6 +31,14 @@ jobs:
       contents: read
       pull-requests: read
     steps:
+      - name: Prepare Intel Rust compiler
+        if: github.event_name == 'pull_request' && matrix.os == 'macos-15-intel'
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          rustup update stable --no-self-update
+          rustup run stable rustc --version
+          rustup run stable cargo --version
+
       - name: Set up Homebrew
         id: set-up-homebrew
         # Homebrew/actions has date-based releases and no major-version tag.
@@ -63,7 +71,6 @@ jobs:
         if: github.event_name == 'pull_request' && matrix.os == 'macos-15-intel'
         run: |
           # Homebrew has no Intel Rust bottle. Use the official stable toolchain.
-          rustup update stable --no-self-update
           export PATH="$HOME/.cargo/bin:$PATH"
           export RUSTUP_TOOLCHAIN=stable
           rustc --version
