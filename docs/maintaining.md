@@ -1,55 +1,93 @@
 # Maintain the tap
 
-This guide explains how to check formulas and prepare releases.
+This guide owns formula checks and bottle publication. The source project owns
+its version and release notes. Keep user installation commands in the
+[README](../README.md).
 
-## Add a formula
+## Change a formula
 
 Add one Ruby file under `Formula/` for each package. Keep its description,
-homepage, license, source, build steps, and useful test in that file. Check the
-source project and its release state before you add a URL or checksum.
+homepage, license, source, build steps, and useful test in that file.
 
-Run from the repository root. For local work, Homebrew can use this checkout
-through a symbolic link. Check `brew --repository btfranklin/tap` first. If the
-tap is already registered, use that checkout. Otherwise, run:
+Confirm that the source release is public. Download its archive and calculate
+its SHA-256 checksum. Use that exact source URL and checksum in the formula.
+Do not use a placeholder checksum or a development branch as a stable release.
+
+Create a branch and pull request for the formula change. From the root of the
+working checkout, register it as a local tap if no tap exists. This command
+checks the registered path before it runs formula checks. It does not replace
+an existing tap:
 
 ```sh
-homebrew_tap_path="$(brew --repository)/Library/Taps/btfranklin/homebrew-tap"
-mkdir -p "$(dirname "$homebrew_tap_path")"
-ln -s "$PWD" "$homebrew_tap_path"
+(
+  set -eu
+  checkout_path="$(pwd -P)"
+  tap_path="$(brew --repository)/Library/Taps/btfranklin/homebrew-tap"
+  if [ ! -e "$tap_path" ] && [ ! -L "$tap_path" ]; then
+    mkdir -p "$(dirname "$tap_path")"
+    ln -s "$checkout_path" "$tap_path"
+  fi
+  registered_path="$(cd "$(brew --repository btfranklin/tap)" && pwd -P)"
+  if [ "$registered_path" != "$checkout_path" ]; then
+    printf '%s\n' "Use the registered tap checkout: $registered_path" >&2
+    exit 1
+  fi
+  brew trust --formula btfranklin/tap/perfect-doc
+  brew info --json=v2 --formula btfranklin/tap/perfect-doc
+  brew style --formula btfranklin/tap/perfect-doc
+  brew audit --strict --online --formula btfranklin/tap/perfect-doc
+)
 ```
 
-Homebrew requires trust before it can execute a local formula. Trust this
-formula, then check its metadata, style, and audit results:
+If a different tap is registered, change to the reported path and put the
+proposed changes there before you run the checks. A published `brew tap` clone
+can be used as the working checkout.
+
+On a disposable Homebrew machine, check a source build:
 
 ```sh
-brew trust --formula btfranklin/tap/perfect-doc
-brew info --json=v2 --formula btfranklin/tap/perfect-doc
-brew style --formula btfranklin/tap/perfect-doc
-brew audit --strict --formula btfranklin/tap/perfect-doc
-```
-
-After publication, add `--online` to the audit command to check public URLs.
-
-The formula test runs after Homebrew installs the formula. This step uses the
-configured Homebrew prefix. On a disposable Homebrew machine, run:
-
-```sh
-brew install --build-from-source --HEAD btfranklin/tap/perfect-doc
-brew test --HEAD perfect-doc
+brew install --build-from-source btfranklin/tap/perfect-doc
+brew test perfect-doc
 brew uninstall perfect-doc
 ```
 
-Use the source and publication status in [the README](../README.md) before
-you run an installation.
+## Build and publish bottles
 
-## Stable releases and bottles
+The [tests workflow](../.github/workflows/tests.yml) uses Homebrew test-bot.
+For a pull request, it builds the changed formula, runs its installed tests,
+and creates bottles on Apple Silicon macOS 15 and Linux x64.
+A push to `main` runs tap syntax checks without another formula build.
 
-Keep a formula HEAD-only until its public source repository has a stable,
-versioned release. Before adding a stable URL, confirm the release archive is
-public and calculate its real SHA-256 checksum. Do not use a placeholder
-checksum.
+Review the complete pull request and require all target jobs to pass. Copy its
+full head commit SHA. Run the [brew pr-pull workflow](../.github/workflows/publish.yml)
+with the pull request number and that reviewed SHA. The SHA check prevents the
+workflow from publishing a later, unreviewed change.
 
-Build and test each bottle on its target platform. Confirm that the installed
-binary works on that platform. Publish bottle metadata only after Homebrew has
-created and uploaded the bottle. Source builds and formula metadata do not prove
-that a bottle works.
+Homebrew downloads the tested bottles, publishes them as GitHub release assets,
+adds their checksums to the formula, and pushes the formula to `main`. The
+workflow also creates bottle attestations. Do not merge the formula separately
+before this command completes.
+
+After publication, pull `main` into the local checkout. Check the bottle source
+URLs, target tags, and checksums in the formula against the public assets.
+
+External actions use moving major version tags. Homebrew's actions use its
+`main` branch because that project has date-based releases and no major tags.
+Setup selects stable Homebrew updates. Test-bot can use Homebrew development
+commands during its checks. The public install workflow updates to stable
+Homebrew.
+
+## Check public installation
+
+Run the [public install workflow](../.github/workflows/verify-install.yml).
+It uses fresh target runners with no registered tap or installed Perfect Doc.
+It installs from the public tap and requires an installed bottle. It checks
+version output, valid documents, broken-link repair details, `brew test`, a
+bottle reinstall, and uninstall.
+
+A successful source build or formula metadata check does not prove that a
+published bottle works. Require the public installation job for each target.
+
+When the next source release is available, test an upgrade from the previous
+installed version. Do not claim an upgrade check from a reinstall of the same
+version.
