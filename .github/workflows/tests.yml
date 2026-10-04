@@ -56,8 +56,39 @@ jobs:
         run: brew test-bot --only-tap-syntax
 
       - name: Test formula
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && matrix.os != 'macos-15-intel'
         run: brew test-bot --only-formulae
+
+      - name: Build and test the Intel bottle
+        if: github.event_name == 'pull_request' && matrix.os == 'macos-15-intel'
+        run: |
+          # Homebrew has no Intel Rust bottle. Use the official stable toolchain.
+          rustup update stable --no-self-update
+          export PATH="$HOME/.cargo/bin:$PATH"
+          export RUSTUP_TOOLCHAIN=stable
+          rustc --version
+          cargo --version
+          # The only dependency is the build compiler supplied above.
+          brew info --json=v2 --formula btfranklin/tap/perfect-doc | python3 -c '
+          import json, sys
+          formula = json.load(sys.stdin)["formulae"][0]
+          assert formula["build_dependencies"] == ["rust"], formula
+          assert not formula["dependencies"], formula
+          assert not formula["test_dependencies"], formula
+          '
+          brew install --build-bottle --ignore-dependencies --env=std btfranklin/tap/perfect-doc
+          brew audit --strict --online --formula btfranklin/tap/perfect-doc
+          brew bottle --json --root-url="https://github.com/$GITHUB_REPOSITORY/releases/download/perfect-doc-$(brew list --versions perfect-doc | awk '{print $2}')" btfranklin/tap/perfect-doc
+          brew uninstall perfect-doc
+          brew install ./perfect-doc--*.bottle.tar.gz
+          brew linkage --test perfect-doc
+          brew test perfect-doc
+
+      - name: Require a tested bottle
+        if: github.event_name == 'pull_request'
+        run: |
+          compgen -G '*.bottle.tar.gz'
+          compgen -G '*.bottle.json'
 
       - name: Upload bottle artifacts
         if: always() && github.event_name == 'pull_request'
@@ -65,5 +96,5 @@ jobs:
         with:
           name: bottles_${{ matrix.os }}
           path: '*.bottle.*'
-          if-no-files-found: ignore
+          if-no-files-found: error
           retention-days: 5
