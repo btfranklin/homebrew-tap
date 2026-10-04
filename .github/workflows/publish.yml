@@ -1,18 +1,22 @@
-name: brew pr-pull
+name: Publish tested bottles from main
 
 on:
   workflow_dispatch:
     inputs:
-      pull_request:
-        description: Formula pull request number
+      run_id:
+        description: Successful main run of tests.yml with both bottle artifacts
         required: true
         type: string
-      head_sha:
-        description: Reviewed 40-character pull request head SHA
-        required: true
-        type: string
+      publish:
+        description: Publish files and push the bottle checksums to main
+        type: boolean
+        default: false
 
 permissions: {}
+
+concurrency:
+  group: publish-bottles
+  cancel-in-progress: false
 
 defaults:
   run:
@@ -20,15 +24,16 @@ defaults:
 
 jobs:
   publish:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       actions: read
       attestations: write
-      checks: read
       contents: write
       id-token: write
-      issues: read
-      pull-requests: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      HOMEBREW_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: Set up Homebrew
         # Homebrew/actions has date-based releases and no major-version tag.
@@ -38,40 +43,108 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Configure Git user
-        id: git-setup
         uses: Homebrew/actions/git-user-config@main
 
-      - name: Validate reviewed pull request head
+      - name: Check the tested main commit
+        id: build
         env:
-          HEAD_SHA: ${{ inputs.head_sha }}
+          BUILD_RUN: ${{ inputs.run_id }}
         run: |
-          if [[ ! "$HEAD_SHA" =~ ^[0-9a-fA-F]{40}$ ]]; then
-            echo "head_sha must be a 40-character commit SHA." >&2
-            exit 1
-          fi
+          [[ "$BUILD_RUN" =~ ^[0-9]+$ ]]
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN" > "$RUNNER_TEMP/build.json"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN/artifacts?per_page=100" > "$RUNNER_TEMP/artifacts.json"
+          tap_path="$(brew --repository btfranklin/tap)"
+          git -C "$tap_path" fetch origin main
+          main_sha="$(git -C "$tap_path" rev-parse origin/main)"
+          python3 - "$RUNNER_TEMP/build.json" "$RUNNER_TEMP/artifacts.json" "$main_sha" <<'PY'
+          import json, os, pathlib, sys
+          run = json.loads(pathlib.Path(sys.argv[1]).read_text())
+          artifacts = json.loads(pathlib.Path(sys.argv[2]).read_text())["artifacts"]
+          if not (
+              run["head_branch"] == "main"
+              and run["head_sha"] == sys.argv[3]
+              and run["event"] in {"push", "workflow_dispatch"}
+              and run["path"] == ".github/workflows/tests.yml"
+              and run["status"] == "completed"
+              and run["conclusion"] == "success"
+          ):
+              raise SystemExit("Use a successful tests.yml run for the current main commit.")
+          expected = {"bottles_macos-15", "bottles_ubuntu-24.04"}
+          if {a["name"] for a in artifacts} != expected or any(a["expired"] for a in artifacts):
+              raise SystemExit("The build must have both complete, unexpired bottle artifacts.")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+              output.write(f"sha={run['head_sha']}\n")
+          PY
+          git -C "$tap_path" checkout -B main "$main_sha"
 
-      - name: Publish tested bottles
-        id: pr-pull
+      - name: Download the tested bottles
+        uses: actions/download-artifact@v8
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ inputs.run_id }}
+          pattern: bottles_*
+          merge-multiple: true
+          path: bottles
+
+      - name: Validate bottle files
+        id: bottles
+        run: |
+          tap_path="$(brew --repository btfranklin/tap)"
+          version="$(brew info --json=v2 --formula btfranklin/tap/perfect-doc | python3 -c 'import json,sys; print(json.load(sys.stdin)["formulae"][0]["versions"]["stable"])')"
+          python3 "$tap_path/scripts/check-bottles.py" "$GITHUB_WORKSPACE/bottles" --version "$version"
+          printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
+
+      - name: Require an unused release version
+        if: inputs.publish
         env:
-          PULL_REQUEST: ${{ inputs.pull_request }}
-          HEAD_SHA: ${{ inputs.head_sha }}
-          HOMEBREW_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          HOMEBREW_GIT_COMMITTER_NAME: ${{ steps.git-setup.outputs.name }}
-          HOMEBREW_GIT_COMMITTER_EMAIL: ${{ steps.git-setup.outputs.email }}
+          VERSION: ${{ steps.bottles.outputs.version }}
         run: |
-          brew pr-pull \
-            --debug \
-            --retain-bottle-dir \
-            --tap="$GITHUB_REPOSITORY" \
-            --head-sha="$HEAD_SHA" \
-            "$PULL_REQUEST"
+          python3 - <<'PY'
+          import os, subprocess
+          result = subprocess.run(
+              ["gh", "api", f"repos/{os.environ['GITHUB_REPOSITORY']}/releases/tags/perfect-doc-{os.environ['VERSION']}"],
+              capture_output=True, text=True,
+          )
+          if result.returncode == 0:
+              raise SystemExit("This bottle release already exists. Use a new source release; do not overwrite it.")
+          if "HTTP 404" not in result.stderr:
+              raise SystemExit(f"Cannot check the release: {result.stderr}")
+          PY
 
-      - name: Attest bottle files
+      - name: Prepare and check the bottle formula
+        working-directory: bottles
+        run: |
+          brew bottle --merge --write --no-commit ./*.bottle.json
+          brew style --formula btfranklin/tap/perfect-doc
+          brew audit --strict --online --formula btfranklin/tap/perfect-doc
+
+      - name: Preview the formula change
+        if: ${{ !inputs.publish }}
+        run: git -C "$(brew --repository btfranklin/tap)" diff -- Formula/perfect-doc.rb
+
+      - name: Confirm main has not changed
+        if: inputs.publish
+        env:
+          TESTED_SHA: ${{ steps.build.outputs.sha }}
+        run: |
+          tap_path="$(brew --repository btfranklin/tap)"
+          git -C "$tap_path" fetch origin main
+          [[ "$(git -C "$tap_path" rev-parse origin/main)" == "$TESTED_SHA" ]]
+
+      - name: Attest the tested bottles
+        if: inputs.publish
         uses: actions/attest@v4
         with:
-          subject-path: "${{ steps.pr-pull.outputs.bottle_path }}/*.tar.gz"
+          subject-path: bottles/*.tar.gz
 
-      - name: Push formula and bottles
-        uses: Homebrew/actions/git-try-push@main
-        with:
-          branch: main
+      - name: Publish files and commit checksums to main
+        if: inputs.publish
+        working-directory: bottles
+        env:
+          VERSION: ${{ steps.bottles.outputs.version }}
+        run: |
+          brew pr-upload --upload-only
+          tap_path="$(brew --repository btfranklin/tap)"
+          git -C "$tap_path" add Formula/perfect-doc.rb
+          git -C "$tap_path" commit -m "Publish Perfect Doc $VERSION bottles"
+          git -C "$tap_path" push origin HEAD:main

@@ -13,8 +13,9 @@ Confirm that the source release is public. Download its archive and calculate
 its SHA-256 checksum. Use that exact source URL and checksum in the formula.
 Do not use a placeholder checksum or a development branch as a stable release.
 
-Create a branch and pull request for the formula change. From the root of the
-working checkout, register it as a local tap if no tap exists. This command
+Make formula changes on `main`. Remove the old bottle block when you change
+the source version. From the root of the working checkout, register it as a
+local tap if no tap exists. This command
 checks the registered path before it runs formula checks. It does not replace
 an existing tap:
 
@@ -54,19 +55,34 @@ brew uninstall perfect-doc
 ## Build and publish bottles
 
 The [tests workflow](../.github/workflows/tests.yml) uses Homebrew test-bot.
-For a pull request, it builds the changed formula, runs its installed tests,
-and creates bottles on Apple Silicon macOS 15 and Linux x64.
-A push to `main` runs tap syntax checks without another formula build.
+Commit and push the checked formula to `main`. A formula or build workflow
+change starts a source build, installed tests, and bottle creation on Apple
+Silicon macOS 15 and Linux x64. Use manual dispatch to build another `main`
+commit. Both target jobs must pass. Bottle artifacts are kept for 14 days.
 
-Review the complete pull request and require all target jobs to pass. Copy its
-full head commit SHA. Run the [brew pr-pull workflow](../.github/workflows/publish.yml)
-with the pull request number and that reviewed SHA. The SHA check prevents the
-workflow from publishing a later, unreviewed change.
+Run the bottle validation tests locally with:
 
-Homebrew downloads the tested bottles, publishes them as GitHub release assets,
-adds their checksums to the formula, and pushes the formula to `main`. The
-workflow also creates bottle attestations. Do not merge the formula separately
-before this command completes.
+```sh
+python3 -m unittest discover -s tests -p 'test_*.py'
+```
+
+Run the [publication workflow](../.github/workflows/publish.yml) from `main`.
+Set `run_id` to the successful build run ID. Leave `publish` false for a
+preview. The preview checks the current `main` commit, both target artifacts,
+versions, filenames, release URLs, and archive checksums. It prepares the bottle
+formula, runs style and audit checks, and prints the formula change.
+
+Set `publish` true to publish. Publication requires an unused release version.
+It attests and uploads the tested bottles, commits their checksums, and pushes
+the formula directly to `main`. It does not need a branch or pull request, and
+it does not build the bottles again. Homebrew's `pr-upload --upload-only`
+command uploads files without a pull request.
+
+Do not change tap `main` during publication. The workflow checks that `main`
+still points to the tested commit before upload. A later change also prevents
+its final push. If publication fails, inspect the release assets and `main`
+before recovery. Do not replace an existing bottle release. A new source
+version needs a new release version.
 
 After publication, pull `main` into the local checkout. Check the bottle source
 URLs, target tags, and checksums in the formula against the public assets.

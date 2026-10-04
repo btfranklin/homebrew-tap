@@ -1,9 +1,15 @@
-name: brew test-bot
+name: Build and test bottles
 
 on:
   push:
     branches: [main]
-  pull_request:
+    paths:
+      - "Formula/**"
+      - ".github/workflows/tests.yml"
+      - ".github/workflows/publish.yml"
+      - "scripts/check-bottles.py"
+      - "tests/**"
+  workflow_dispatch:
 
 permissions: {}
 
@@ -29,7 +35,6 @@ jobs:
       actions: read
       checks: read
       contents: read
-      pull-requests: read
     steps:
       - name: Set up Homebrew
         id: set-up-homebrew
@@ -55,21 +60,23 @@ jobs:
       - name: Check tap syntax
         run: brew test-bot --only-tap-syntax
 
+      - name: Test bottle validation
+        if: runner.os == 'macOS'
+        run: python3 -m unittest discover -s "$(brew --repository btfranklin/tap)/tests" -p 'test_*.py'
+
       - name: Test formula
-        if: github.event_name == 'pull_request'
-        run: brew test-bot --only-formulae
+        run: brew test-bot --only-formulae btfranklin/tap/perfect-doc
 
       - name: Require a tested bottle
-        if: github.event_name == 'pull_request'
         run: |
           compgen -G '*.bottle.tar.gz'
           compgen -G '*.bottle.json'
 
       - name: Upload bottle artifacts
-        if: always() && github.event_name == 'pull_request'
+        if: success()
         uses: actions/upload-artifact@v7
         with:
           name: bottles_${{ matrix.os }}
           path: '*.bottle.*'
           if-no-files-found: error
-          retention-days: 5
+          retention-days: 14
