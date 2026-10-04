@@ -1,0 +1,6 @@
+# macOS
+.DS_Store
+
+# Local Homebrew test output
+/home/
+/logs/
