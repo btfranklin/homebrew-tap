@@ -56,7 +56,7 @@ def require_clean_homebrew() -> None:
 def public_install() -> None:
     run(["brew", "install", "--force-bottle", "--formula", FORMULA])
 
-    tap_path = Path(run(["brew", "--repository", TAP_NAME], capture=True).stdout.strip())
+    tap_path = Path(run(["brew", "--repository", TAP_NAME], capture=True).stdout.strip()).resolve()
     if tap_path == ROOT or ROOT in tap_path.parents:
         raise VerificationError("Homebrew used the checked-out tap directory.")
     origin = run(

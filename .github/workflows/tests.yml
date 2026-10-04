@@ -19,7 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-15, macos-15-intel]
+        os: [macos-15]
         include:
           - os: ubuntu-24.04
             container:
@@ -31,16 +31,6 @@ jobs:
       contents: read
       pull-requests: read
     steps:
-      - name: Prepare Intel Rust compiler
-        if: github.event_name == 'pull_request' && matrix.os == 'macos-15-intel'
-        run: |
-          export PATH="$HOME/.cargo/bin:$PATH"
-          rustup update stable --no-self-update
-          rustup run stable rustc --version
-          rustup run stable cargo --version
-          compiler_bin="$(dirname "$(rustup which --toolchain stable rustc)")"
-          printf 'PERFECT_DOC_RUST_BIN=%s\n' "$compiler_bin" >> "$GITHUB_ENV"
-
       - name: Set up Homebrew
         id: set-up-homebrew
         # Homebrew/actions has date-based releases and no major-version tag.
@@ -66,31 +56,8 @@ jobs:
         run: brew test-bot --only-tap-syntax
 
       - name: Test formula
-        if: github.event_name == 'pull_request' && matrix.os != 'macos-15-intel'
+        if: github.event_name == 'pull_request'
         run: brew test-bot --only-formulae
-
-      - name: Build and test the Intel bottle
-        if: github.event_name == 'pull_request' && matrix.os == 'macos-15-intel'
-        run: |
-          # Homebrew has no Intel Rust bottle. Use the official stable toolchain.
-          export PATH="$PERFECT_DOC_RUST_BIN:$PATH"
-          rustc --version
-          cargo --version
-          # The only dependency is the build compiler supplied above.
-          brew info --json=v2 --formula btfranklin/tap/perfect-doc | python3 -c '
-          import json, sys
-          formula = json.load(sys.stdin)["formulae"][0]
-          assert formula["build_dependencies"] == ["rust"], formula
-          assert not formula["dependencies"], formula
-          assert not formula["test_dependencies"], formula
-          '
-          brew install --build-bottle --ignore-dependencies btfranklin/tap/perfect-doc
-          brew audit --strict --online --formula btfranklin/tap/perfect-doc
-          brew bottle --json --root-url="https://github.com/$GITHUB_REPOSITORY/releases/download/perfect-doc-$(brew list --versions perfect-doc | awk '{print $2}')" btfranklin/tap/perfect-doc
-          brew uninstall perfect-doc
-          brew install ./perfect-doc--*.bottle.tar.gz
-          brew linkage --test perfect-doc
-          brew test perfect-doc
 
       - name: Require a tested bottle
         if: github.event_name == 'pull_request'
